@@ -65,27 +65,49 @@ function updateSaveEnabled(){
 
 async function startCamera(){
   if (state.stream) return;
+
   const [w,h] = settings.resolution.split("x").map(n=>Number(n));
-  const constraints = {
+
+  // iPhone Safari 対策：段階的に条件を緩める
+  const c1 = {
     audio:false,
     video:{
-      width: { ideal: w },
-      height:{ ideal: h },
-      facingMode: { ideal: "environment" }
+      facingMode:{ ideal:"environment" },
+      width:{ ideal:w },
+      height:{ ideal:h }
     }
   };
+  const c2 = {
+    audio:false,
+    video:{
+      width:{ ideal:w },
+      height:{ ideal:h }
+    }
+  };
+  const c3 = { audio:false, video:true };
+
   try{
-    state.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    state.stream = await navigator.mediaDevices.getUserMedia(c1)
+      .catch(()=>navigator.mediaDevices.getUserMedia(c2))
+      .catch(()=>navigator.mediaDevices.getUserMedia(c3));
+
     el("video").srcObject = state.stream;
+    el("video").setAttribute("playsinline", true); // ★重要（iOS）
     await el("video").play();
+
     state.track = state.stream.getVideoTracks()[0];
-    el("btnTorch").disabled = !(state.track.getCapabilities && state.track.getCapabilities().torch);
+    el("btnTorch").disabled = !(
+      state.track.getCapabilities &&
+      state.track.getCapabilities().torch
+    );
+
     toast("カメラを開始しました。");
   }catch(err){
     console.error(err);
-    toast("カメラを開始できませんでした。ブラウザ権限をご確認ください。", false);
+    toast("カメラを開始できません。Safariの権限設定をご確認ください。", false);
   }
 }
+
 
 function stopCamera(){
   if (!state.stream) return;
